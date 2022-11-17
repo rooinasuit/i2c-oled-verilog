@@ -37,7 +37,7 @@ i2c_master i2c_master1 (
     .sda (sda)
 );
 
-i2c_display_setup (
+i2c_oled_setup i2c_oled_setup (
     .CLK (CLK),
     .NRST (NRST),
     .slave_addr (slave_addr),
