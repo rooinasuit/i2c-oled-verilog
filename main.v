@@ -17,7 +17,7 @@ wire control_frame;
 wire reg_addr;
 wire data_write
 
-Gowin_rPLL your_instance_name(
+Gowin_rPLL PLL(
     .clkout(CLK), //output clkout 27M
     .clkoutd(SCL_PULSE), //output clkoutd 400k - 2%
     .clkin(clkin_i) //input clkin 27M
