@@ -11,14 +11,13 @@ module i2c_master (
 
     input [7:0] control_frame, // control frame to slave
     input [7:0] reg_addr, // reg addr to slave
-    input [7:0] master_data, // data to slave if WRITE
+    input [7:0] data_write, // data to slave if WRITE
 
-    output reg [7:0] slave_data, // data from slave if READ
+    // output reg [7:0] data_from_slave, // data from slave if READ
 
     inout scl,
     inout sda
 );
-
 
 localparam IDLE = 4'd0; // sda == 1 and scl == 1
 localparam START = 4'd1; // sda 1->0 while scl == 1
@@ -36,26 +35,26 @@ reg sda_out_en;
 assign scl_out_en = (state != IDLE && bus_timing != 1)
 assign sda_out_en = (state != IDLE && state != READ && state != ACKNOWLEDGE)
 
-reg scl_high; 
+reg scl_high;
 reg sda_high;
 
-assign scl = scl_out_en ? scl_high : 1'bz; // whether to allow
+assign scl = scl_out_en ? scl_high : 1'bz; // whether to allow    
 assign sda = sda_out_en ? sda_high : 1'bz; // master to transmit
-
+                                           // logic '1' on scl_/sda_high is 1'bz either way 
 reg transmission_en; // enable buffer
 reg [7:0] slave_addr_out; // slave_addr buffer
 reg [7:0] control_frame_out; // control_frame buffer
 reg [7:0] reg_addr_out; // reg_addr buffer
 reg [7:0] master_data_out; // master_data buffer
 
-reg ack; // ack or nack from slave
+reg ack; // ack or nack from a slave
 
 reg [1:0] bus_timing; // monitor whether to switch logic of scl or sda
-reg [3:0] bit_counter; // monitor the current number of bits send/received in each frame
+reg [3:0] bit_counter; // monitor the current number of bits sent/received in each frame
 
 // !! SDA MUST NOT CHANGE ITS LOGIC LEVEL WHILE SCL IS ACTIVE
 
-reg [4:0] state;
+reg [4:0] state = IDLE;
 reg [4:0] next_state; // for when there's more than one condition to check before switching
 
 always @ (posedge CLK) begin
@@ -125,6 +124,7 @@ always @ (posedge CLK) begin
                         1: begin
                             scl_high <= 1;
                             bus_timing <= 2;
+                        end
                         2: begin
                             scl_high <= 0;
                             bus_timing <= 3;
@@ -279,14 +279,14 @@ always @ (posedge CLK) begin
                             ack <= 0;
                         end
                         else begin
-                            state <= IDLE;
+                            state <= STOP; // <= IDLE
                         end
                         bus_timing <= 0;
                     end
                     endcase
                     // did we get ACK?
                     // if yes, then state <= next_state
-                    // if not, return to idle
+                    // if not, attempt to stop (IDLE)
                 end
                 STOP: begin
                     case (bus_timing)
@@ -310,6 +310,26 @@ always @ (posedge CLK) begin
                 end
             endcase
         end
+    end
+end
+
+always @ (posedge CLK) begin
+    if (!NRST)
+        data_addr <= 8'd0;
+    else if (data_addr > 255)
+        data_addr <= 8'd0;
+    else if (&bit_counter)
+        data_addr <= data_addr + 1;
+
+end
+
+always @ (posedge CLK) begin
+    if (!NRST)
+        data_addr <= 8'd0;
+    else begin
+        case (state)
+            START:
+        endcase
     end
 end
 
