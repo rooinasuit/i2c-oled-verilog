@@ -15,6 +15,11 @@ module i2c_master (
 
     // output reg [7:0] data_from_slave, // data from slave if READ
 
+    output reg [3:0] state = IDLE, // for tracking both here and in parallel modules
+    output reg [7:0] control_queue; // pointer to control frame queue
+    output reg [7:0] command_queue; // pointer to command frame queue
+    output reg [7:0] data_queue; // pointer to data frame queue
+
     inout scl,
     inout sda
 );
@@ -54,7 +59,6 @@ reg [3:0] bit_counter; // monitor the current number of bits sent/received in ea
 
 // !! SDA MUST NOT CHANGE ITS LOGIC LEVEL WHILE SCL IS ACTIVE
 
-reg [4:0] state = IDLE;
 reg [4:0] next_state; // for when there's more than one condition to check before switching
 
 always @ (posedge CLK) begin
@@ -68,30 +72,31 @@ always @ (posedge CLK) begin
         ack <= 0;
         bus_timing <= 0;
         bit_counter <= 7;
+        control_queue <= 0;
+        command_queue <= 0;
+        data_queue <= 0;
         state <= IDLE;
         next_state <= IDLE;
     end
     else begin
         if(SCL_PULSE) begin
-            if (state != (IDLE || STOP)) 
-                bus_timing <= bus_timing + 1;
-            else if (state == ACKNOWLEDGE && ack == 0)
-                bus_timing <= bus_timing;
-            else if (bus_timing > 2'b11)
-                bus_timing <= 2'd0;
+            //if (state != (IDLE || STOP)) 
+            //    bus_timing <= bus_timing + 1;
+            //else if (state == ACKNOWLEDGE && ack == 0)
+            //    bus_timing <= bus_timing;
+            //else if (bus_timing > 2'b11)
+            //    bus_timing <= 2'd0;
             case(state)
                 IDLE: begin
                     scl_high <= 1;
                     sda_high <= 1;                    
                     //////////////
                     transmission_en <= enable;
-                    slave_addr_out <= {slave_addr, read_write};
-                    reg_addr_out <= reg_addr;
-                    master_data_out <= master_data;
                     //////////////
                     bus_timing <= 0;
-                    if (transmission_en)
+                    if (transmission_en) begin
                         state <= START;
+                    end
                 end
                 START: begin
                     case (bus_timing)
@@ -115,6 +120,9 @@ always @ (posedge CLK) begin
                     endcase
                 end
                 RECOGNITION: begin
+                    if (bit_counter == 7) begin
+                        slave_addr_out <= {slave_addr, read_write};
+                    end
                     case (bus_timing)
                         0: begin
                             sda_high <= slave_addr_out[bit_counter]; 
@@ -147,6 +155,9 @@ always @ (posedge CLK) begin
                     endcase
                 end
                 WRITE_CONTROL: begin
+                    if (bit_counter == 7) begin
+                        control_frame_out <= control_frame;
+                    end
                     case (bus_timing)
                         0: begin
                             sda_high <= control_frame_out[bit_counter];
@@ -164,6 +175,7 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 bit_counter <= 7;
+                                control_queue <= control_queue + 1;
                                 bus_timing <= 0;
                                 state <= ACKNOWLEDGE;
                             end
@@ -185,6 +197,9 @@ always @ (posedge CLK) begin
                     // depending on Co and D/C#
                 end
                 WRITE_COMMAND: begin
+                    if (bit_counter == 7) begin
+                        reg_addr_out <= reg_addr;
+                    end
                     case (bus_timing)
                         0: begin
                             sda_high <= reg_addr_out[bit_counter];
@@ -202,6 +217,7 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 bit_counter <= 7;
+                                command_queue <= command_queue + 1;
                                 bus_timing <= 0;
                                 next_state <= WRITE_CONTROL;
                                 state <= ACKNOWLEDGE;
@@ -212,6 +228,9 @@ always @ (posedge CLK) begin
                     endcase
                 end
                 WRITE_DATA: begin
+                    if (bit_counter == 7) begin
+                        master_data_out <= master_data;
+                    end
                     case (bus_timing)
                         0: begin
                             sda_high <= master_data_out[bit_counter];
@@ -229,6 +248,7 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 bit_counter <= 7;
+                                data_queue <= data_queue + 1;
                                 bus_timing <= 0;
                                 next_state <= WRITE_CONTROL;
                                 state <= ACKNOWLEDGE;
@@ -308,28 +328,19 @@ always @ (posedge CLK) begin
                         end
                     endcase
                 end
+                default: begin
+                    scl_high <= 1;
+                    sda_high <= 1;                    
+                    //////////////
+                    transmission_en <= enable;
+                    //////////////
+                    bus_timing <= 0;
+                    if (transmission_en) begin
+                        state <= START;
+                    end
+                end
             endcase
         end
-    end
-end
-
-always @ (posedge CLK) begin
-    if (!NRST)
-        data_addr <= 8'd0;
-    else if (data_addr > 255)
-        data_addr <= 8'd0;
-    else if (&bit_counter)
-        data_addr <= data_addr + 1;
-
-end
-
-always @ (posedge CLK) begin
-    if (!NRST)
-        data_addr <= 8'd0;
-    else begin
-        case (state)
-            START:
-        endcase
     end
 end
 
