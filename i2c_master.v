@@ -15,10 +15,10 @@ module i2c_master (
 
     // output reg [7:0] data_from_slave, // data from slave if READ
 
-    output reg [3:0] state = IDLE, // for tracking both here and in parallel modules
-    output reg [7:0] control_queue; // pointer to control frame queue
-    output reg [7:0] command_queue; // pointer to command frame queue
-    output reg [7:0] data_queue; // pointer to data frame queue
+    output reg [3:0] state, // for tracking both here and in parallel modules
+    output reg [7:0] control_queue, // pointer to control frame queue
+    output reg command_queue, // pointer to command frame queue
+    output reg [7:0] data_queue, // pointer to data frame queue
 
     inout scl,
     inout sda
@@ -30,15 +30,15 @@ localparam RECOGNITION = 4'd2; // request slave by address [0, 1, 1, 1, 1, 0, 0/
 localparam WRITE_CONTROL = 4'd3; // R/W# == 0 for writing bytes of data to slave
 localparam WRITE_COMMAND = 4'd4; // D/C# == 0 for command
 localparam WRITE_DATA = 4'd5; // D/C# == 1 for data into GDDRAM
-localparam READ = 4'd6; // R/W# == 1 for reading bytes of data from slave
+localparam READ = 4'd6; // R/W# == 1 for reading bytes of data from slave (not in i2c)
 localparam ACKNOWLEDGE = 4'd7; // sda -> 0 while scl == 0, slave acknowledges each control- or data-byte
-localparam STOP = 4'd8 // sda 0->1 while scl == 1
+localparam STOP = 4'd8; // sda 0->1 while scl == 1
 
-reg scl_out_en;
-reg sda_out_en;
+wire scl_out_en;
+wire sda_out_en;
 
-assign scl_out_en = (state != IDLE && bus_timing != 1)
-assign sda_out_en = (state != IDLE && state != READ && state != ACKNOWLEDGE)
+assign scl_out_en = (state != IDLE && bus_timing != 1);
+assign sda_out_en = (state != IDLE && state != READ && state != ACKNOWLEDGE);
 
 reg scl_high;
 reg sda_high;
@@ -50,16 +50,16 @@ reg transmission_en; // enable buffer
 reg [7:0] slave_addr_out; // slave_addr buffer
 reg [7:0] control_frame_out; // control_frame buffer
 reg [7:0] reg_addr_out; // reg_addr buffer
-reg [7:0] master_data_out; // master_data buffer
+reg [7:0] data_write_out; // data_write buffer
 
-reg ack; // ack or nack from a slave
+reg ack; // ack or nack from a slavea
 
 reg [1:0] bus_timing; // monitor whether to switch logic of scl or sda
 reg [3:0] bit_counter; // monitor the current number of bits sent/received in each frame
 
 // !! SDA MUST NOT CHANGE ITS LOGIC LEVEL WHILE SCL IS ACTIVE
 
-reg [4:0] next_state; // for when there's more than one condition to check before switching
+reg [3:0] next_state; // for when there's more than one condition to check before switching
 
 always @ (posedge CLK) begin
     if (!NRST) begin
@@ -68,7 +68,7 @@ always @ (posedge CLK) begin
         transmission_en <= 0;
         slave_addr_out <= 0;
         reg_addr_out <= 0;
-        master_data_out <= 0;
+        data_write_out <= 0;
         ack <= 0;
         bus_timing <= 0;
         bit_counter <= 7;
@@ -91,7 +91,7 @@ always @ (posedge CLK) begin
                     scl_high <= 1;
                     sda_high <= 1;                    
                     //////////////
-                    transmission_en <= enable;
+                    transmission_en <= !enable;
                     //////////////
                     bus_timing <= 0;
                     if (transmission_en) begin
@@ -126,7 +126,6 @@ always @ (posedge CLK) begin
                     case (bus_timing)
                         0: begin
                             sda_high <= slave_addr_out[bit_counter]; 
-                            bit_counter <= bit_counter - 1;
                             bus_timing <= 1;
                         end
                         1: begin
@@ -149,8 +148,10 @@ always @ (posedge CLK) begin
                                 bus_timing <= 0;
                                 state <= ACKNOWLEDGE;
                             end
-                            else
+                            else begin
+                                bit_counter <= bit_counter - 1'b1;
                                 bus_timing <= 0;
+                            end
                         end
                     endcase
                 end
@@ -160,9 +161,12 @@ always @ (posedge CLK) begin
                     end
                     case (bus_timing)
                         0: begin
-                            sda_high <= control_frame_out[bit_counter];
-                            bit_counter <= bit_counter - 1;
-                            bus_timing <= 1;
+                            if (!scl_high) begin
+                                sda_high <= control_frame_out[bit_counter];
+                                bus_timing <= 1;
+                            end
+                            else 
+                                bus_timing <= 0;
                         end
                         1: begin
                             scl_high <= 1;
@@ -175,7 +179,7 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 bit_counter <= 7;
-                                control_queue <= control_queue + 1;
+                                control_queue <= control_queue + 1'b1;
                                 bus_timing <= 0;
                                 state <= ACKNOWLEDGE;
                             end
@@ -186,10 +190,13 @@ always @ (posedge CLK) begin
                                     1:
                                         next_state <= WRITE_DATA;
                                 endcase
+                                bit_counter <= bit_counter - 1'b1;
                                 bus_timing <= 0; 
                             end
-                            else
+                            else begin
+                                bit_counter <= bit_counter - 1'b1;
                                 bus_timing <= 0;
+                            end
                         end
                     endcase
                     // first frame is control
@@ -202,9 +209,12 @@ always @ (posedge CLK) begin
                     end
                     case (bus_timing)
                         0: begin
-                            sda_high <= reg_addr_out[bit_counter];
-                            bit_counter <= bit_counter - 1;
-                            bus_timing <= 1;
+                            if (!scl_high) begin
+                                sda_high <= reg_addr_out[bit_counter];
+                                bus_timing <= 1;
+                            end
+                            else
+                                bus_timing <= 0;
                         end
                         1: begin
                             scl_high <= 1;
@@ -217,25 +227,30 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 bit_counter <= 7;
-                                command_queue <= command_queue + 1;
+                                command_queue <= command_queue + 1'b1;
                                 bus_timing <= 0;
                                 next_state <= WRITE_CONTROL;
                                 state <= ACKNOWLEDGE;
                             end
-                            else
+                            else begin
+                                bit_counter <= bit_counter - 1'b1;
                                 bus_timing <= 0;
+                            end
                         end
                     endcase
                 end
                 WRITE_DATA: begin
                     if (bit_counter == 7) begin
-                        master_data_out <= master_data;
+                        data_write_out <= data_write;
                     end
                     case (bus_timing)
                         0: begin
-                            sda_high <= master_data_out[bit_counter];
-                            bit_counter <= bit_counter - 1;
-                            bus_timing <= 1;
+                            if (!scl_high) begin
+                                sda_high <= data_write_out[bit_counter];
+                                bus_timing <= 1;
+                            end
+                            else
+                                bus_timing <= 0;
                         end
                         1: begin
                             scl_high <= 1;
@@ -248,32 +263,34 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 bit_counter <= 7;
-                                data_queue <= data_queue + 1;
+                                data_queue <= data_queue + 1'b1;
                                 bus_timing <= 0;
                                 next_state <= WRITE_CONTROL;
                                 state <= ACKNOWLEDGE;
                             end
-                            else
+                            else begin
+                                bit_counter <= bit_counter - 1'b1;
                                 bus_timing <= 0;
+                            end
                         end
                     endcase
                 end
-                READ: begin
-                    case (bus_timing)
-                        0: begin
+                //READ: begin
+                //    case (bus_timing)
+                //        0: begin
 
-                        end
-                        1: begin
+                //        end
+                //        1: begin
 
-                        end
-                        2: begin
+                //        end
+                //        2: begin
                         
-                        end
-                        3: begin
+                //        end
+                //        3: begin
 
-                        end
-                    endcase
-                end
+                //        end
+                //    endcase
+                //end
                 ACKNOWLEDGE: begin
                     case (bus_timing)
                     0: begin
@@ -317,6 +334,8 @@ always @ (posedge CLK) begin
                         1: begin
                             if (scl == 1)
                                 bus_timing <= 2;
+                            else
+                                bus_timing <= 1;
                         end
                         2: begin
                             sda_high <= 1;
@@ -332,7 +351,7 @@ always @ (posedge CLK) begin
                     scl_high <= 1;
                     sda_high <= 1;                    
                     //////////////
-                    transmission_en <= enable;
+                    transmission_en <= !enable;
                     //////////////
                     bus_timing <= 0;
                     if (transmission_en) begin

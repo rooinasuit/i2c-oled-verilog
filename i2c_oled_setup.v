@@ -3,9 +3,9 @@ module i2c_oled_setup (
     input NRST,
     
     input [3:0] state,
-    input [7:0] control_queue;
-    input [7:0] command_queue;
-    input [7:0] data_queue;
+    input [7:0] control_queue,
+    input command_queue,
+    input [7:0] data_queue,
 
     output reg [6:0] slave_addr,
     output reg read_write,
@@ -13,7 +13,7 @@ module i2c_oled_setup (
     output reg [7:0] control_frame,
     output reg [7:0] reg_addr,
     output reg [7:0] data_write
-)
+);
 
 localparam IDLE = 4'd0; // sda == 1 and scl == 1
 localparam START = 4'd1; // sda 1->0 while scl == 1
@@ -23,7 +23,10 @@ localparam WRITE_COMMAND = 4'd4; // D/C# == 0 for command
 localparam WRITE_DATA = 4'd5; // D/C# == 1 for data into GDDRAM
 localparam READ = 4'd6; // R/W# == 1 for reading bytes of data from slave
 localparam ACKNOWLEDGE = 4'd7; // sda -> 0 while scl == 0, slave acknowledges each control- or data-byte
-localparam STOP = 4'd8 // sda 0->1 while scl == 1
+localparam STOP = 4'd8; // sda 0->1 while scl == 1
+
+//localparam COMMAND_FRAMES = 8'd255;
+//localparam DATA_FRAMES = 8'd255;
 
 always @ (posedge CLK) begin
     if (!NRST) begin
@@ -34,35 +37,37 @@ always @ (posedge CLK) begin
         data_write <= 0;
     end
     else begin
-        case (state)
-            RECOGNITION: begin // only oled (write) for the time being
+        //case (state)
+        //    RECOGNITION: begin // only oled (write) for the time being
                 slave_addr <= 7'b0111100;
-                read_write <= 1'b1;
-            end
-            WRITE_CONTROL: begin // only commands for the time being
+                read_write <= 1'b0;
+        //    end
+        //    WRITE_CONTROL: begin // only commands for the time being
                 control_frame <= 8'b00000000;
-                case (control_queue)
-
-                endcase
-            end
-            WRITE_COMMAND: begin
+                //case (control_queue)
+                //
+                //endcase
+        //    end
+        //    WRITE_COMMAND: begin
                 case (command_queue)
-
+                    1'b0: reg_addr <= 8'hA5; // Entire Display ON
+                    1'b1: reg_addr <= 8'hAF; // Set Display ON
+                    default: reg_addr <= 8'hA5;
                 endcase
-            end
-            WRITE_DATA: begin
-                case (data_queue)
-
-                endcase
-            end
-            default: begin
-            slave_addr <= 0;
-            read_write <= 0;
-            control_frame <= 0;
-            reg_addr <= 0;
-            data_write <= 0;
-            end
-        endcase
+        //    end
+            //WRITE_DATA: begin
+            //    case (data_queue)
+            //
+            //    endcase
+            //end
+        //    default: begin
+        //    slave_addr <= 0;
+        //    read_write <= 0;
+        //    control_frame <= 0;
+        //    reg_addr <= 0;
+        //    data_write <= 0;
+        //    end
+        //endcase
     end
 end
 
@@ -151,5 +156,10 @@ end
 //                //     1'b0  A6    A5    A4    1'b0  1'b0  1'b0  1'b0
 //     8'hDB: spread => {1'b1, 1'b1, 1'b0, 1'b1, 1'b1, 1'b0, 1'b1, 1'b1}; // [**] Set Vcomh Deselect Level
 //     8'hE3: spread => {1'b1, 1'b1, 1'b1, 1'b0, 1'b0, 1'b0, 1'b1, 1'b1}; // [*] NOP
+
+// // CHARGE PUMP //
+
+//                //                 1'b0  1'b1  1'b0  A2    1'b0  1'b0
+//     8'hD5: spread => {1'b1, 1'b0, 1'b0, 1'b0, 1'b1, 1'b1, 1'b0, 1'b1}; // [**] Charge Pump Setting
 
 endmodule
