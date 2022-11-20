@@ -1,5 +1,5 @@
-Early version of the project containing an i2c master module, oled setup module, main file and a PLL.
+Early version of the project containing an i2c master module, oled setup module, main file and a freq divider module.
 
-Command/data input to be added in the near future
+The sole i2c master seems to be working perfectly
 
-Made for tang nano 9k
+Data/Command sequences to be tested
