@@ -17,7 +17,7 @@ module i2c_master (
 
     output reg [3:0] state, // for tracking both here and in parallel modules
     output reg [7:0] control_queue, // pointer to control frame queue
-    output reg command_queue, // pointer to command frame queue
+    output reg [4:0] command_queue, // pointer to command frame queue
     output reg [7:0] data_queue, // pointer to data frame queue
 
     inout scl,

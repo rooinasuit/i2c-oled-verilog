@@ -22,7 +22,7 @@ wire [7:0] data_write;
 wire [3:0] state;
 
 wire [7:0] control_queue;
-wire command_queue;
+wire [4:0] command_queue;
 wire [7:0] data_queue;
 
 //Gowin_rPLL PLL(

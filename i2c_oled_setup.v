@@ -4,7 +4,7 @@ module i2c_oled_setup (
     
     input [3:0] state,
     input [7:0] control_queue,
-    input command_queue,
+    input [4:0] command_queue,
     input [7:0] data_queue,
 
     output reg [6:0] slave_addr,
@@ -50,9 +50,37 @@ always @ (posedge CLK) begin
         //    end
         //    WRITE_COMMAND: begin
                 case (command_queue)
-                    1'b0: reg_addr <= 8'hA5; // Entire Display ON
-                    1'b1: reg_addr <= 8'hAF; // Set Display ON
-                    default: reg_addr <= 8'hA5;
+                    5'd0: reg_addr <= 8'hA8; // Set Mux Ratio
+                    5'd1: reg_addr <= 8'h3F; // **
+
+                    5'd2: reg_addr <= 8'hD3; // Set Display Offset
+                    5'd3: reg_addr <= 8'h00; // **
+
+                    5'd4: reg_addr <= 8'h40; // Set Display Start Line
+
+                    5'd5: reg_addr <= 8'hA0; // Set Segment remap
+
+                    5'd6: reg_addr <= 8'hC0; // Set COM Out Scan Dir
+
+                    5'd7: reg_addr <= 8'hDA; // Set COM Pins Hardware Config
+                    5'd8: reg_addr <= 8'h02; // **
+
+                    5'd9: reg_addr <= 8'h81; // Set Contrast Control
+                    5'd10: reg_addr <= 8'h7F; // **
+
+                    5'd11: reg_addr <= 8'hA4; // Disable Entire Display ON
+
+                    5'd12: reg_addr <= 8'hA6; // Set Normal Display
+
+                    5'd13: reg_addr <= 8'hD5; // Set Osc Freq
+                    5'd14: reg_addr <= 8'h80; // **
+
+                    5'd15: reg_addr <= 8'h8D; // Enable Charge Pump Regulator
+                    5'd16: reg_addr <= 8'h14; // **
+
+                    5'd17: reg_addr <= 8'hAF; // Display ON
+
+                    default: reg_addr <= 8'hE3;
                 endcase
         //    end
             //WRITE_DATA: begin
