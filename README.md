@@ -1,5 +1,3 @@
-Early version of the project containing an i2c master module, oled setup module, main file and a freq divider module.
+Working version of the project being capable of sending commands to ssd1306 according to the norm stated in datasheet
 
-The sole i2c master seems to be having some timing issues
-
-Data/Command sequences to be tested
+Data frame sequences to be implemented

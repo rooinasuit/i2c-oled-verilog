@@ -3,7 +3,7 @@ module i2c_oled_setup (
     input NRST,
     
     input [3:0] state,
-    input [7:0] control_queue,
+
     input [4:0] command_queue,
     input [7:0] data_queue,
 
@@ -12,7 +12,10 @@ module i2c_oled_setup (
 
     output reg [7:0] control_frame,
     output reg [7:0] reg_addr,
-    output reg [7:0] data_write
+    output reg [7:0] data_write,
+
+    output reg [1:0] control_select,
+    output reg co_flag
 );
 
 localparam IDLE = 4'd0; // sda == 1 and scl == 1
@@ -23,64 +26,339 @@ localparam WRITE_COMMAND = 4'd4; // D/C# == 0 for command
 localparam WRITE_DATA = 4'd5; // D/C# == 1 for data into GDDRAM
 localparam READ = 4'd6; // R/W# == 1 for reading bytes of data from slave
 localparam ACKNOWLEDGE = 4'd7; // sda -> 0 while scl == 0, slave acknowledges each control- or data-byte
-localparam STOP = 4'd8; // sda 0->1 while scl == 1
+localparam RECOGNITION_ACK = 4'd8; // ACKNOWLEDGE state exclusively for slave address
+localparam STOP = 4'd9; // sda 0->1 while scl == 1
 
-//localparam COMMAND_FRAMES = 8'd255;
-//localparam DATA_FRAMES = 8'd255;
+reg frame_timing;
 
-always @ (posedge CLK) begin
+always @ (posedge CLK) begin 
     if (!NRST) begin
-        slave_addr <= 0;
-        read_write <= 0;
-        control_frame <= 0;
-        reg_addr <= 0;
-        data_write <= 0;
+        control_select <= 1;
+        co_flag <= 0;
+        //
+        frame_timing <= 0;
     end
     else begin
-        //case (state)
-        //    RECOGNITION: begin // only oled (write) for the time being
+        case (state)
+            START: begin // only oled (write) for the time being
                 slave_addr <= 7'b0111100;
                 read_write <= 1'b0;
-        //    end
-        //    WRITE_CONTROL: begin // only commands for the time being
-                control_frame <= 8'b00000000;
-                //case (control_queue)
+            end
+            ACKNOWLEDGE: begin
+                case (control_select)
+                    2'b00: control_frame <= 8'h80; // single command frame
+                    2'b01: control_frame <= 8'h00; // multiple command frames
+                    2'b10: control_frame <= 8'hC0; // single data frame
+                    2'b11: control_frame <= 8'h40; // multiple data frames
+                endcase
                 //
-                //endcase
-        //    end
-        //    WRITE_COMMAND: begin
                 case (command_queue)
-                    5'd0: reg_addr <= 8'hA8; // Set Mux Ratio
-                    5'd1: reg_addr <= 8'h3F; // **
+                    5'd0: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b01;
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hA8; // Set Mux Ratio
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    5'd1: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h3F; // **
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase  
+                    end
+                    //
+                    5'd2: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b01;
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hD3; // Set Display Offset
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase 
+                    end
+                    5'd3: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h00; // **
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase 
+                    end
+                    //
+                    5'd4: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h40; // Set Display Start Line
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase 
+                    end
+                    //
+                    5'd5: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hA0; // Set Segment remap
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase 
+                    end
+                    //
+                    5'd6: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hC0; // Set COM Out Scan Dir
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase 
+                    end
+                    //
+                    5'd7: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b01;
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hDA; // Set COM Pins Hardware Config
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    5'd8: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h02; // **
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    //
+                    5'd9: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b01;
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h81; // Set Contrast Control
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    5'd10: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h7F; // **
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
 
-                    5'd2: reg_addr <= 8'hD3; // Set Display Offset
-                    5'd3: reg_addr <= 8'h00; // **
+                    5'd11: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hA4; // Disable Entire Display ON
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
 
-                    5'd4: reg_addr <= 8'h40; // Set Display Start Line
+                    5'd12: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hA6; // Set Normal Display
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
 
-                    5'd5: reg_addr <= 8'hA0; // Set Segment remap
+                    5'd13: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b01;
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hD5; // Set Osc Freq
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    5'd14: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h80; // **
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
 
-                    5'd6: reg_addr <= 8'hC0; // Set COM Out Scan Dir
+                    5'd15: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b01;
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h8D; // Enable Charge Pump Regulator
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    5'd16: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'h14; // **
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
 
-                    5'd7: reg_addr <= 8'hDA; // Set COM Pins Hardware Config
-                    5'd8: reg_addr <= 8'h02; // **
+                    5'd17: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hAF; // Display ON
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
 
-                    5'd9: reg_addr <= 8'h81; // Set Contrast Control
-                    5'd10: reg_addr <= 8'h7F; // **
-
-                    5'd11: reg_addr <= 8'hA4; // Disable Entire Display ON
-
-                    5'd12: reg_addr <= 8'hA6; // Set Normal Display
-
-                    5'd13: reg_addr <= 8'hD5; // Set Osc Freq
-                    5'd14: reg_addr <= 8'h80; // **
-
-                    5'd15: reg_addr <= 8'h8D; // Enable Charge Pump Regulator
-                    5'd16: reg_addr <= 8'h14; // **
-
-                    5'd17: reg_addr <= 8'hAF; // Display ON
-
-                    default: reg_addr <= 8'hE3;
+                    5'd18: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hA5; // Entire Display ON
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    default: begin
+                        case (frame_timing)
+                            0: begin
+                                control_select <= 2'b00;
+                                co_flag <= 1;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                reg_addr <= 8'hE3; // NOP
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end  
                 endcase
         //    end
             //WRITE_DATA: begin
@@ -95,8 +373,9 @@ always @ (posedge CLK) begin
         //    reg_addr <= 0;
         //    data_write <= 0;
         //    end
-        //endcase
-    end
+            end
+        endcase
+    end 
 end
 
 // [*]    => single byte command
