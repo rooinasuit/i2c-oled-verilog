@@ -10,6 +10,12 @@ module main (
 
 wire SCL_PULSE;
 
+wire sec_inc;
+
+wire [6:0] hr;
+wire [6:0] min;
+wire [6:0] sec;
+
 wire [6:0] slave_addr;
 wire read_write;
 
@@ -29,6 +35,21 @@ serial_clock serial_clock (
     .CLK (CLK),
     .NRST (NRST),
     .SCL (SCL_PULSE)
+);
+
+seconds_clock seconds_clock (
+    .CLK (CLK),
+    .NRST (NRST),
+    .sec_inc (sec_inc)
+);
+
+clock_driver clock_driver (
+    .CLK (CLK),
+    .NRST (NRST),
+    .sec_inc (sec_inc),
+    .hr (hr),
+    .min (min),
+    .sec (sec)
 );
 
 i2c_master i2c_master1 (
@@ -64,6 +85,7 @@ i2c_oled_setup i2c_oled_setup (
     .control_select (control_select),
     .co_flag (co_flag)
 );
+
 
 //debouncer enable_button (
 //    .CLK (CLK),

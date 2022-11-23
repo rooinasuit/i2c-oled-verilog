@@ -5,7 +5,7 @@ module i2c_oled_setup (
     input [3:0] state,
 
     input [4:0] command_queue,
-    input [7:0] data_queue,
+    input [8:0] data_queue,
 
     output reg [6:0] slave_addr,
     output reg read_write,
@@ -30,6 +30,14 @@ localparam RECOGNITION_ACK = 4'd8; // ACKNOWLEDGE state exclusively for slave ad
 localparam STOP = 4'd9; // sda 0->1 while scl == 1
 
 reg frame_timing;
+
+// let's make an HH:MM:SS clock outta this :)
+
+// AFTER INIT COMMANDS:
+// 1) send a sequence of data bytes into the GDDRAM of oled,
+// 2) send another sequence of pure ram data every time a change in the
+// data output of the clock occurs (every 1s)
+
 
 always @ (posedge CLK) begin 
     if (!NRST) begin
@@ -122,7 +130,7 @@ always @ (posedge CLK) begin
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'h40; // Set Display Start Line
+                                reg_addr <= 8'h40; // Set Display Start Line (0)
                                 //
                                 frame_timing <= 0;
                             end
@@ -338,7 +346,9 @@ always @ (posedge CLK) begin
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'hA5; // Entire Display ON
+                                reg_addr <= 8'hE3; // NOP (one cycle before switching over to writing into ram)
+                                //
+                                control_select <= 2'b11; // multiple data frames will follow (mode commands for init needed?)
                                 //
                                 frame_timing <= 0;
                             end
@@ -360,19 +370,196 @@ always @ (posedge CLK) begin
                         endcase
                     end  
                 endcase
-        //    end
-            //WRITE_DATA: begin
-            //    case (data_queue)
-            //
-            //    endcase
-            //end
-        //    default: begin
-        //    slave_addr <= 0;
-        //    read_write <= 0;
-        //    control_frame <= 0;
-        //    reg_addr <= 0;
-        //    data_write <= 0;
-        //    end
+                case (data_queue)
+                    //code x00
+                    9'h000: data_write = 8'b00000000; // 
+                    9'h001: data_write = 8'b00000000; // 
+                    9'h002: data_write = 8'b01111100; //  *****
+                    9'h003: data_write = 8'b11000110; // **   **
+                    9'h004: data_write = 8'b11000110; // **   **
+                    9'h005: data_write = 8'b11001110; // **  ***
+                    9'h006: data_write = 8'b11011110; // ** ****
+                    9'h007: data_write = 8'b11110110; // **** **
+                    9'h008: data_write = 8'b11100110; // ***  **
+                    9'h009: data_write = 8'b11000110; // **   **
+                    9'h00a: data_write = 8'b11000110; // **   **
+                    9'h00b: data_write = 8'b01111100; //  *****
+                    9'h00c: data_write = 8'b00000000; // 
+                    9'h00d: data_write = 8'b00000000; // 
+                    9'h00e: data_write = 8'b00000000; // 
+                    9'h00f: data_write = 8'b00000000; // 
+                    //code x01
+                    9'h010: data_write = 8'b00000000; // 
+                    9'h011: data_write = 8'b00000000; // 
+                    9'h012: data_write = 8'b00011000; // 
+                    9'h013: data_write = 8'b00111000; // 
+                    9'h014: data_write = 8'b01111000; //    **
+                    9'h015: data_write = 8'b00011000; //   ***
+                    9'h016: data_write = 8'b00011000; //  ****
+                    9'h017: data_write = 8'b00011000; //    **
+                    9'h018: data_write = 8'b00011000; //    **
+                    9'h019: data_write = 8'b00011000; //    **
+                    9'h01a: data_write = 8'b00011000; //    **
+                    9'h01b: data_write = 8'b01111110; //    **
+                    9'h01c: data_write = 8'b00000000; //    **
+                    9'h01d: data_write = 8'b00000000; //  ******
+                    9'h01e: data_write = 8'b00000000; // 
+                    9'h01f: data_write = 8'b00000000; // 
+                    //code x02
+                    9'h020: data_write = 8'b00000000; // 
+                    9'h021: data_write = 8'b00000000; // 
+                    9'h022: data_write = 8'b01111100; //  *****
+                    9'h023: data_write = 8'b11000110; // **   **
+                    9'h024: data_write = 8'b00000110; //      **
+                    9'h025: data_write = 8'b00001100; //     **
+                    9'h026: data_write = 8'b00011000; //    **
+                    9'h027: data_write = 8'b00110000; //   **
+                    9'h028: data_write = 8'b01100000; //  **
+                    9'h029: data_write = 8'b11000000; // **
+                    9'h02a: data_write = 8'b11000110; // **   **
+                    9'h02b: data_write = 8'b11111110; // *******
+                    9'h02c: data_write = 8'b00000000; // 
+                    9'h02d: data_write = 8'b00000000; // 
+                    9'h02e: data_write = 8'b00000000; // 
+                    9'h02f: data_write = 8'b00000000; // 
+                    //code x03
+                    9'h030: data_write = 8'b00000000; // 
+                    9'h031: data_write = 8'b00000000; // 
+                    9'h032: data_write = 8'b01111100; //  *****
+                    9'h033: data_write = 8'b11000110; // **   **
+                    9'h034: data_write = 8'b00000110; //      **
+                    9'h035: data_write = 8'b00000110; //      **
+                    9'h036: data_write = 8'b00111100; //   ****
+                    9'h037: data_write = 8'b00000110; //      **
+                    9'h038: data_write = 8'b00000110; //      **
+                    9'h039: data_write = 8'b00000110; //      **
+                    9'h03a: data_write = 8'b11000110; // **   **
+                    9'h03b: data_write = 8'b01111100; //  *****
+                    9'h03c: data_write = 8'b00000000; // 
+                    9'h03d: data_write = 8'b00000000; // 
+                    9'h03e: data_write = 8'b00000000; // 
+                    9'h03f: data_write = 8'b00000000; // 
+                    //code x04
+                    9'h040: data_write = 8'b00000000; // 
+                    9'h041: data_write = 8'b00000000; // 
+                    9'h042: data_write = 8'b00001100; //     **
+                    9'h043: data_write = 8'b00011100; //    ***
+                    9'h044: data_write = 8'b00111100; //   ****
+                    9'h045: data_write = 8'b01101100; //  ** **
+                    9'h046: data_write = 8'b11001100; // **  **
+                    9'h047: data_write = 8'b11111110; // *******
+                    9'h048: data_write = 8'b00001100; //     **
+                    9'h049: data_write = 8'b00001100; //     **
+                    9'h04a: data_write = 8'b00001100; //     **
+                    9'h04b: data_write = 8'b00011110; //    ****
+                    9'h04c: data_write = 8'b00000000; // 
+                    9'h04d: data_write = 8'b00000000; // 
+                    9'h04e: data_write = 8'b00000000; // 
+                    9'h04f: data_write = 8'b00000000; // 
+                    //code x05
+                    9'h050: data_write = 8'b00000000; // 
+                    9'h051: data_write = 8'b00000000; // 
+                    9'h052: data_write = 8'b11111110; // *******
+                    9'h053: data_write = 8'b11000000; // **
+                    9'h054: data_write = 8'b11000000; // **
+                    9'h055: data_write = 8'b11000000; // **
+                    9'h056: data_write = 8'b11111100; // ******
+                    9'h057: data_write = 8'b00000110; //      **
+                    9'h058: data_write = 8'b00000110; //      **
+                    9'h059: data_write = 8'b00000110; //      **
+                    9'h05a: data_write = 8'b11000110; // **   **
+                    9'h05b: data_write = 8'b01111100; //  *****
+                    9'h05c: data_write = 8'b00000000; // 
+                    9'h05d: data_write = 8'b00000000; // 
+                    9'h05e: data_write = 8'b00000000; // 
+                    9'h05f: data_write = 8'b00000000; // 
+                    //code x06
+                    9'h060: data_write = 8'b00000000; // 
+                    9'h061: data_write = 8'b00000000; // 
+                    9'h062: data_write = 8'b00111000; //   ***
+                    9'h063: data_write = 8'b01100000; //  **
+                    9'h064: data_write = 8'b11000000; // **
+                    9'h065: data_write = 8'b11000000; // **
+                    9'h066: data_write = 8'b11111100; // ******
+                    9'h067: data_write = 8'b11000110; // **   **
+                    9'h068: data_write = 8'b11000110; // **   **
+                    9'h069: data_write = 8'b11000110; // **   **
+                    9'h06a: data_write = 8'b11000110; // **   **
+                    9'h06b: data_write = 8'b01111100; //  *****
+                    9'h06c: data_write = 8'b00000000; // 
+                    9'h06d: data_write = 8'b00000000; // 
+                    9'h06e: data_write = 8'b00000000; // 
+                    9'h06f: data_write = 8'b00000000; // 
+                    //code x07
+                    9'h070: data_write = 8'b00000000; // 
+                    9'h071: data_write = 8'b00000000; // 
+                    9'h072: data_write = 8'b11111110; // *******
+                    9'h073: data_write = 8'b11000110; // **   **
+                    9'h074: data_write = 8'b00000110; //      **
+                    9'h075: data_write = 8'b00000110; //      **
+                    9'h076: data_write = 8'b00001100; //     **
+                    9'h077: data_write = 8'b00011000; //    **
+                    9'h078: data_write = 8'b00110000; //   **
+                    9'h079: data_write = 8'b00110000; //   **
+                    9'h07a: data_write = 8'b00110000; //   **
+                    9'h07b: data_write = 8'b00110000; //   **
+                    9'h07c: data_write = 8'b00000000; // 
+                    9'h07d: data_write = 8'b00000000; // 
+                    9'h07e: data_write = 8'b00000000; // 
+                    9'h07f: data_write = 8'b00000000; // 
+                    //code x08
+                    9'h080: data_write = 8'b00000000; // 
+                    9'h081: data_write = 8'b00000000; // 
+                    9'h082: data_write = 8'b01111100; //  *****
+                    9'h083: data_write = 8'b11000110; // **   **
+                    9'h084: data_write = 8'b11000110; // **   **
+                    9'h085: data_write = 8'b11000110; // **   **
+                    9'h086: data_write = 8'b01111100; //  *****
+                    9'h087: data_write = 8'b11000110; // **   **
+                    9'h088: data_write = 8'b11000110; // **   **
+                    9'h089: data_write = 8'b11000110; // **   **
+                    9'h08a: data_write = 8'b11000110; // **   **
+                    9'h08b: data_write = 8'b01111100; //  *****
+                    9'h08c: data_write = 8'b00000000; // 
+                    9'h08d: data_write = 8'b00000000; // 
+                    9'h08e: data_write = 8'b00000000; // 
+                    9'h08f: data_write = 8'b00000000; // 
+                    //code x09
+                    9'h090: data_write = 8'b00000000; // 
+                    9'h091: data_write = 8'b00000000; // 
+                    9'h092: data_write = 8'b01111100; //  *****
+                    9'h093: data_write = 8'b11000110; // **   **
+                    9'h094: data_write = 8'b11000110; // **   **
+                    9'h095: data_write = 8'b11000110; // **   **
+                    9'h096: data_write = 8'b01111110; //  ******
+                    9'h097: data_write = 8'b00000110; //      **
+                    9'h098: data_write = 8'b00000110; //      **
+                    9'h099: data_write = 8'b00000110; //      **
+                    9'h09a: data_write = 8'b00001100; //     **
+                    9'h09b: data_write = 8'b01111000; //  ****
+                    9'h09c: data_write = 8'b00000000; // 
+                    9'h09d: data_write = 8'b00000000; // 
+                    9'h09e: data_write = 8'b00000000; // 
+                    9'h09f: data_write = 8'b00000000; // 
+                    //code x10
+                    9'h100: data_write = 8'b00000000; // 
+                    9'h101: data_write = 8'b00000000; // 
+                    9'h102: data_write = 8'b00000000; // 
+                    9'h103: data_write = 8'b00000000; // 
+                    9'h104: data_write = 8'b00011000; //    **
+                    9'h105: data_write = 8'b00011000; //    **
+                    9'h106: data_write = 8'b00000000; // 
+                    9'h107: data_write = 8'b00000000; // 
+                    9'h108: data_write = 8'b00000000; // 
+                    9'h109: data_write = 8'b00011000; //    **
+                    9'h10a: data_write = 8'b00011000; //    **
+                    9'h10b: data_write = 8'b00000000; // 
+                    9'h10c: data_write = 8'b00000000; // 
+                    9'h10d: data_write = 8'b00000000; // 
+                    9'h10e: data_write = 8'b00000000; // 
+                    9'h10f: data_write = 8'b00000000; //
+                    default: data_write = 8'b00000000;
+                endcase
             end
         endcase
     end 

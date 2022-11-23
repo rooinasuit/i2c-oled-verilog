@@ -21,7 +21,7 @@ module i2c_master (
     output reg [3:0] state, // for tracking both here and in parallel modules
 
     output reg [4:0] command_queue, // pointer to command frame queue
-    output reg [7:0] data_queue, // pointer to data frame queue
+    output reg [8:0] data_queue, // pointer to data frame queue
 
     inout scl,
     inout sda
@@ -43,7 +43,7 @@ wire scl_out_en;
 wire sda_out_en; 
 
 assign scl_out_en = (state != IDLE);
-assign sda_out_en = (state != IDLE && state != READ && state != ACKNOWLEDGE);
+assign sda_out_en = (state != IDLE && state != READ && state != RECOGNITION_ACK && state != ACKNOWLEDGE);
 
 reg scl_high;
 reg sda_high;
@@ -111,8 +111,6 @@ always @ (posedge CLK) begin
                     case (bus_timing)
                         0: begin
                             sda_high <= 0;
-                            //
-                            //transmission_en <= 0;
                             //
                             bit_counter <= 8;
                             bus_timing <= 1;
@@ -204,14 +202,12 @@ always @ (posedge CLK) begin
                             else if (bit_counter == 6) begin
                                 case (sda_high)
                                     0: begin
-                                        //command_write_out <= reg_addr;
                                         //
                                         bus_timing <= 0;
                                         //
                                         next_state <= WRITE_COMMAND;
                                     end
                                     1: begin
-                                        //data_write_out <= data_write;
                                         //
                                         bus_timing <= 0;
                                         //
@@ -224,9 +220,6 @@ always @ (posedge CLK) begin
                             end
                         end
                     endcase
-                    // first frame is control
-                    // second is data or command
-                    // depending on Co and D/C#
                 end
                 WRITE_COMMAND: begin
                     case (bus_timing)
@@ -248,8 +241,6 @@ always @ (posedge CLK) begin
                         end
                         3: begin
                             if (bit_counter == 0) begin
-                                //control_frame_out <= control_frame;
-                                //
                                 command_queue <= command_queue + 1'b1;
                                 //
                                 bit_counter <= 8;
@@ -284,9 +275,9 @@ always @ (posedge CLK) begin
                         end
                         3: begin
                             if (bit_counter == 0) begin
-                                //control_frame_out <= control_frame;
                                 //
-                                data_queue <= data_queue + 1'b1;
+                                //data_queue <= data_queue + 1'b1;
+                                // DOBOR DANYCH NA WYSYL BEDZIE SELEKTYWNY
                                 //
                                 bit_counter <= 8;
                                 bus_timing <= 0;
@@ -452,8 +443,6 @@ always @ (posedge CLK) begin
                     control_frame_out <= 0;
                     command_write_out <= 0;
                     data_write_out <= 0;
-                    //
-                    //transmission_en <= !enable;
                     //
                     bit_counter <= 8;
                     bus_timing <= 0;
