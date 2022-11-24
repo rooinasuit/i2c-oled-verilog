@@ -5,7 +5,7 @@ module i2c_oled_setup (
     input [3:0] state,
 
     input [4:0] command_queue,
-    input [8:0] data_queue,
+    input [7:0] data_queue,
 
     output reg [6:0] slave_addr,
     output reg read_write,
@@ -29,7 +29,8 @@ localparam ACKNOWLEDGE = 4'd7; // sda -> 0 while scl == 0, slave acknowledges ea
 localparam RECOGNITION_ACK = 4'd8; // ACKNOWLEDGE state exclusively for slave address
 localparam STOP = 4'd9; // sda 0->1 while scl == 1
 
-reg frame_timing;
+reg comm_frame_timing;
+reg data_frame_timing;
 
 // let's make an HH:MM:SS clock outta this :)
 
@@ -38,13 +39,15 @@ reg frame_timing;
 // 2) send another sequence of pure ram data every time a change in the
 // data output of the clock occurs (every 1s)
 
+// thats for another day
 
 always @ (posedge CLK) begin 
     if (!NRST) begin
         control_select <= 1;
         co_flag <= 0;
         //
-        frame_timing <= 0;
+        comm_frame_timing <= 0;
+        data_frame_timing <= 0;
     end
     else begin
         case (state)
@@ -60,253 +63,1096 @@ always @ (posedge CLK) begin
                     2'b11: control_frame <= 8'h40; // multiple data frames
                 endcase
                 //
-                case (command_queue)
-                    5'd0: begin
+                if ((control_frame == 8'h80) | (control_frame == 8'h00)) begin
+                    case (command_queue)
+                        5'd0: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hAE; // Set Display OFF
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        //
+                        5'd1: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hAF; // Set Mux Ratio
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd2: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h3F; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase  
+                        end
+                        //
+                        5'd3: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hD3; // Set Display Offset
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase 
+                        end
+                        5'd4: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h00; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase 
+                        end
+                        //
+                        5'd5: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h50; // Set Display Start Line (0)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase 
+                        end
+                        //
+                        5'd6: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hA1; // Set Segment remap
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase 
+                        end
+                        //
+                        5'd7: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hC8; // Set COM Out Scan Dir
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase 
+                        end
+                        //
+                        5'd8: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hDA; // Set COM Pins Hardware Config
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd9: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h12; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        //
+                        5'd10: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h81; // Set Contrast Control
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd11: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h08; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd12: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hA4; // Disable Entire Display ON
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd13: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hA6; // Set Normal Display
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd14: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h11; // Set Osc Freq
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd15: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hF1; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd16: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h8D; // Enable Charge Pump Regulator
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd17: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h14; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd18: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h20; // Set Memory Addressing Mode
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd19: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h20; // ** (Horizontal)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd20: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h21; // Set Column Address
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd21: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h00; // *** (Start -> 0)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd22: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h0F; // *** (End -> 7)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd23: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h22; // Page Address
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd24: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'h20; // *** (Start -> 0)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        5'd25: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+
+                                    //
+                                    reg_addr <= 8'h21; // *** (End -> 1)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        //
+                        5'd26: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    //
+                                    reg_addr <= 8'hD9; // Set Precharge Period
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd27: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    //
+                                    reg_addr <= 8'hF1; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        //
+                        5'd28: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b01;
+                                    co_flag <= 0;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    //
+                                    reg_addr <= 8'hDB; // Set VCOMH Deselect Level
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        5'd29: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    //
+                                    reg_addr <= 8'h40; // **
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        //
+                        5'd30: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    //
+                                    reg_addr <= 8'hAF; // Display ON
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        //
+                        5'd31: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    control_select <= 2'b11;
+                                    reg_addr <= 8'hE3; // NOP (one cycle before switching over to writing into ram)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        default: begin
+                            case (comm_frame_timing)
+                                0: begin
+                                    control_select <= 2'b00;
+                                    co_flag <= 1;
+                                    //
+                                    comm_frame_timing <= 1;
+                                end
+                                1: begin
+                                    reg_addr <= 8'hE3; // NOP (one cycle before switching over to writing into ram)
+                                    //
+                                    comm_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                    endcase
+                end
+                else if ((control_frame == 8'hC0) | (control_frame == 8'h40)) begin
+                    case (data_queue) // lets make a 16x16 square outta this
+                        8'd0: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        
+                        8'd1: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        8'd2: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        8'd3: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        8'd4: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        8'd5: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                        
+                        8'd6: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        8'd7: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        8'd8: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    control_select <= 2'b11;
+                                    co_flag <= 0;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+
+                        default: begin
+                            case (data_frame_timing)
+                                0: begin
+                                    co_flag <= 1;
+                                    //
+                                    data_frame_timing <= 1;
+                                end
+                                1: begin
+                                    control_select <= 2'b00;
+                                    //
+                                    data_write <= 8'h0F;
+                                    //
+                                    data_frame_timing <= 0;
+                                end
+                            endcase
+                        end
+                    endcase
+                end
+                /*
+                    8'd02: begin
                         case (frame_timing)
                             0: begin
-                                control_select <= 2'b01;
                                 co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'hA8; // Set Mux Ratio
+                                data_write <= 8'h03;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
                     end
-                    5'd1: begin
+                    8'd03: begin
                         case (frame_timing)
                             0: begin
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'h3F; // **
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase  
-                    end
-                    //
-                    5'd2: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b01;
                                 co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'hD3; // Set Display Offset
+                                data_write <= 8'h03;
                                 //
                                 frame_timing <= 0;
                             end
-                        endcase 
+                        endcase
                     end
-                    5'd3: begin
+                    8'd04: begin
                         case (frame_timing)
                             0: begin
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'h00; // **
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase 
-                    end
-                    //
-                    5'd4: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'h40; // Set Display Start Line (0)
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase 
-                    end
-                    //
-                    5'd5: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'hA0; // Set Segment remap
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase 
-                    end
-                    //
-                    5'd6: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'hC0; // Set COM Out Scan Dir
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase 
-                    end
-                    //
-                    5'd7: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b01;
                                 co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'hDA; // Set COM Pins Hardware Config
+                                data_write <= 8'h03;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
                     end
-                    5'd8: begin
+                    8'd05: begin
                         case (frame_timing)
                             0: begin
-                                co_flag <= 1;
+                                co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'h02; // **
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd06: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd07: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd08: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd09: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd10: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd11: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd12: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd13: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'h03;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd14: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hFF;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd15: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hFF;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
                     end
                     //
-                    5'd9: begin
+                    8'd16: begin
                         case (frame_timing)
                             0: begin
-                                control_select <= 2'b01;
                                 co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'h81; // Set Contrast Control
+                                data_write <= 8'hFF;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
                     end
-                    5'd10: begin
+                    8'd17: begin
                         case (frame_timing)
                             0: begin
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'h7F; // **
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase
-                    end
-
-                    5'd11: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'hA4; // Disable Entire Display ON
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase
-                    end
-
-                    5'd12: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'hA6; // Set Normal Display
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase
-                    end
-
-                    5'd13: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b01;
                                 co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'hD5; // Set Osc Freq
+                                data_write <= 8'hFF;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
                     end
-                    5'd14: begin
+                    8'd18: begin
                         case (frame_timing)
                             0: begin
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'h80; // **
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase
-                    end
-
-                    5'd15: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b01;
                                 co_flag <= 0;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'h8D; // Enable Charge Pump Regulator
+                                data_write <= 8'hC0;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
                     end
-                    5'd16: begin
+                    8'd19: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd20: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd21: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd22: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd23: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd24: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd25: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd26: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd27: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd28: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd29: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hC0;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd30: begin
+                        case (frame_timing)
+                            0: begin
+                                co_flag <= 0;
+                                //
+                                frame_timing <= 1;
+                            end
+                            1: begin
+                                data_write <= 8'hFF;
+                                //
+                                frame_timing <= 0;
+                            end
+                        endcase
+                    end
+                    8'd31: begin
                         case (frame_timing)
                             0: begin
                                 co_flag <= 1;
@@ -314,41 +1160,7 @@ always @ (posedge CLK) begin
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'h14; // **
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase
-                    end
-
-                    5'd17: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'hAF; // Display ON
-                                //
-                                frame_timing <= 0;
-                            end
-                        endcase
-                    end
-
-                    5'd18: begin
-                        case (frame_timing)
-                            0: begin
-                                control_select <= 2'b00;
-                                co_flag <= 1;
-                                //
-                                frame_timing <= 1;
-                            end
-                            1: begin
-                                reg_addr <= 8'hE3; // NOP (one cycle before switching over to writing into ram)
-                                //
-                                control_select <= 2'b11; // multiple data frames will follow (mode commands for init needed?)
+                                data_write <= 8'hFF;
                                 //
                                 frame_timing <= 0;
                             end
@@ -357,21 +1169,19 @@ always @ (posedge CLK) begin
                     default: begin
                         case (frame_timing)
                             0: begin
-                                control_select <= 2'b00;
                                 co_flag <= 1;
                                 //
                                 frame_timing <= 1;
                             end
                             1: begin
-                                reg_addr <= 8'hE3; // NOP
+                                data_write <= 8'h00;
+                                control_select <= 2'b00;
                                 //
                                 frame_timing <= 0;
                             end
                         endcase
-                    end  
-                endcase
-                case (data_queue)
-                    //code x00
+                    end */
+                    /* //code x00
                     9'h000: data_write = 8'b00000000; // 
                     9'h001: data_write = 8'b00000000; // 
                     9'h002: data_write = 8'b01111100; //  *****
@@ -558,8 +1368,8 @@ always @ (posedge CLK) begin
                     9'h10d: data_write = 8'b00000000; // 
                     9'h10e: data_write = 8'b00000000; // 
                     9'h10f: data_write = 8'b00000000; //
-                    default: data_write = 8'b00000000;
-                endcase
+                    default: data_write = 8'b00000000; */
+                //endcase
             end
         endcase
     end 

@@ -21,7 +21,7 @@ module i2c_master (
     output reg [3:0] state, // for tracking both here and in parallel modules
 
     output reg [4:0] command_queue, // pointer to command frame queue
-    output reg [8:0] data_queue, // pointer to data frame queue
+    output reg [7:0] data_queue, // pointer to data frame queue
 
     inout scl,
     inout sda
@@ -276,8 +276,7 @@ always @ (posedge CLK) begin
                         3: begin
                             if (bit_counter == 0) begin
                                 //
-                                //data_queue <= data_queue + 1'b1;
-                                // DOBOR DANYCH NA WYSYL BEDZIE SELEKTYWNY
+                                data_queue <= data_queue + 1'b1;
                                 //
                                 bit_counter <= 8;
                                 bus_timing <= 0;

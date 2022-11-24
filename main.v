@@ -10,11 +10,11 @@ module main (
 
 wire SCL_PULSE;
 
-wire sec_inc;
+/* wire sec_inc;
 
 wire [6:0] hr;
 wire [6:0] min;
-wire [6:0] sec;
+wire [6:0] sec; */
 
 wire [6:0] slave_addr;
 wire read_write;
@@ -37,7 +37,7 @@ serial_clock serial_clock (
     .SCL (SCL_PULSE)
 );
 
-seconds_clock seconds_clock (
+/* seconds_clock seconds_clock (
     .CLK (CLK),
     .NRST (NRST),
     .sec_inc (sec_inc)
@@ -50,7 +50,7 @@ clock_driver clock_driver (
     .hr (hr),
     .min (min),
     .sec (sec)
-);
+); */
 
 i2c_master i2c_master1 (
     .CLK (CLK),
